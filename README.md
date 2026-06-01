@@ -2,6 +2,8 @@
 
 A very creatively named mod, indeed. Reduced fireworks have less power, making them easier to use when flying in enclosed spaces or getting up a ledge when building.
 
+This happens to work as a nerf for elytra, to make traveling long distances with it more resource-intense and less unbalanced when compared to alternatives.
+
 Fireworks used to have a speed cap or "target speed" and would slow you down if you were above that speed. This has been removed because allowing the control of the power and speed is counterintuitive as power directly turns into speed. Instead, fireworks produce decreasing power up to a speed cap, after which they produce no thrust.
 
 ## Gamerules
