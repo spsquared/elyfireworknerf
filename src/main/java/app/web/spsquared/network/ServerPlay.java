@@ -33,6 +33,8 @@ public class ServerPlay {
     private static final int enforcementHandshakeDeadline = 200; // you have 10 seconds to verify
     private static final Map<@NonNull UUID, Integer> enforcementList = new ConcurrentHashMap<>();
     private static final @NonNull DisconnectionDetails enforcementMessage = new DisconnectionDetails(Component.literal("Reduced Elytra Firework v" + Version.VERSION + " must be installed"));
+    // disconnecting immediately causes bugs with some mods, so disconnection is deferred by one tick
+    private static final Map<@NonNull UUID, Integer> enforcementDisconnections = new ConcurrentHashMap<>();
 
     private static void initEnforcement() {
         // always register this payload so client knows if the mod is present
@@ -48,8 +50,8 @@ public class ServerPlay {
                 if (ServerPlayNetworking.canSend(player, EnforcementHandshakePayload.TYPE)) {
                     ServerPlayNetworking.send(player, new EnforcementHandshakePayload(Version.VERSION));
                 } else {
-                    player.connection.disconnect(enforcementMessage);
                     ElytraFireworkReduced.LOGGER.warn(String.format("Disconnected as packet %s was not registered", EnforcementHandshakePayload.TYPE.id().toString()));
+                    enforcementDisconnections.put(player.getUUID(), 1);
                 }
             });
             ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
@@ -61,9 +63,8 @@ public class ServerPlay {
                 final ServerPlayer player = context.player();
                 String clientVersion = payload.version();
                 if (!clientVersion.equals(Version.VERSION)) {
-                    // disconnect if wrong version
-                    player.connection.disconnect(enforcementMessage);
                     ElytraFireworkReduced.LOGGER.warn(String.format("Disconnected as client has wrong version (expected %s, got %s)", Version.VERSION, clientVersion));
+                    enforcementDisconnections.put(player.getUUID(), 1);
                 } else {
                     ElytraFireworkReduced.playersWithMod.put(player.getUUID(), true);
                 }
@@ -74,9 +75,8 @@ public class ServerPlay {
                 // this is probably way overkill
                 // disconnect if somehow mod namespace was registered but packet wasn't sent in time
                 PlayerList players = server.getPlayerList();
-                for (@NonNull
-                UUID id : enforcementList.keySet()) {
-                    Integer i = enforcementList.get(id);
+                for (UUID id : enforcementList.keySet()) {
+                    int i = enforcementList.get(id);
                     enforcementList.put(id, i + 1);
                     if (i >= enforcementHandshakeDeadline) { // intentional
                         ServerPlayer p = players.getPlayer(id);
@@ -85,6 +85,19 @@ public class ServerPlay {
                             ElytraFireworkReduced.LOGGER.warn("Disconnected as client presence packet timed out");
                         }
                         enforcementList.remove(id);
+                    }
+                }
+                // defer immediate disconnections by 1 tick to avoid ghost players with some mods
+                // I can't actually figure out what mod it is but it happens so uh
+                for (UUID id : enforcementDisconnections.keySet()) {
+                    int i = enforcementDisconnections.get(id);
+                    if (i == 0) {
+                        ServerPlayer p = players.getPlayer(id);
+                        if (p != null)
+                            p.connection.disconnect(enforcementMessage);
+                        enforcementDisconnections.remove(id);
+                    } else {
+                        enforcementDisconnections.put(id, i - 1);
                     }
                 }
             });
