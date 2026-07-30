@@ -24,6 +24,10 @@ loom {
 		}
 	}
 
+	runs {
+		client { runDir = "run/${project.minecraft_version}" }
+		server { runDir = "run/${project.minecraft_version}" }
+	}
 }
 
 dependencies {
